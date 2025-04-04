@@ -5,7 +5,11 @@
 # Variables
 TF_VARS_FILE ?= terraform.tfvars
 TF_PLAN_FILE ?= tfplan
-GKE_CLUSTER_NAME ?= $(shell terraform output -raw cluster_name 2>/dev/null)
+ifeq ($(OS),Windows_NT)
+    GKE_CLUSTER_NAME ?= $(shell terraform output -raw cluster_name 2>nul)
+else
+    GKE_CLUSTER_NAME ?= $(shell terraform output -raw cluster_name 2>/dev/null)
+endif
 
 ## —— Terraform & GKE Automation ———————————————————————————————————————————————————————————
 help:  ## Show this help menu
@@ -60,3 +64,14 @@ list-versions:  ## List available Terraform versions
 ## —— Safety Checks —————————————————————————————————————————————————————————————————————
 confirm:
 	@echo -n "Are you sure? [y/N] " && read ans && [ $${ans:-N} = y ]
+
+scale-down:  ## Scale nodes to 0 to reduce cost
+	gcloud container clusters resize $(GKE_CLUSTER_NAME) \
+		--node-pool=default-pool --num-nodes=0 \
+		--region $(shell terraform output -raw region)
+
+## —— Minimize costs —————————————————————————————————————————————————————————————————————
+scale-up:  ## Restore node count
+	gcloud container clusters resize $(GKE_CLUSTER_NAME) \
+		--node-pool=default-pool --num-nodes=$(var.node_count) \
+		--region $(shell terraform output -raw region)
